@@ -100,7 +100,16 @@ def build_search_tab():
 
         with gr.Row():
             with gr.Column():
-                db_selection_button = gr.Button(loc.localize("embeddings-search-db-selection-button-label"))
+                db_selection_button = gr.Button(
+                    loc.localize("embeddings-search-db-selection-button-label"),
+                    visible=not gu._USE_SERVER
+                )
+                db_directory_textbox = gr.Textbox(
+                    label=loc.localize("embeddings-search-db-selection-button-label"),
+                    placeholder="Enter database directory path" if gu._USE_SERVER else "",
+                    visible=gu._USE_SERVER,
+                    interactive=gu._USE_SERVER,
+                )
                 with gr.Group():
                     with gr.Row():
                         db_selection_tb = gr.Textbox(
@@ -126,7 +135,16 @@ def build_search_tab():
                             label=loc.localize("embeddings-search-db-audio-speed-number-label"),
                         )
                 query_spectrogram = gr.Plot(show_label=False)
-                select_query_btn = gr.Button(loc.localize("embeddings-search-select-query-button-label"))
+                select_query_btn = gr.Button(
+                    loc.localize("embeddings-search-select-query-button-label"),
+                    visible=not gu._USE_SERVER
+                )
+                query_file_upload = gr.File(
+                    label="Upload Query Audio File" if gu._USE_SERVER else None,
+                    file_types=[".wav", ".mp3", ".flac", ".ogg", ".m4a"],
+                    visible=gu._USE_SERVER,
+                    interactive=gu._USE_SERVER,
+                )
                 query_sample_tb = gr.Textbox(
                     label=loc.localize("embeddings-search-query-sample-textbox-label"),
                     visible=False,
@@ -263,10 +281,41 @@ def build_search_tab():
             )
 
         return None, None, None, None, [], {}, gr.Button(visible=False), gr.Textbox(visible=False)
+    
+    def on_db_textbox_change(path):
+        if path and os.path.isdir(path):
+            try:
+                db = get_embeddings_database(path)
+                embedding_count = db.count_embeddings()
+                settings = db.get_metadata("birdnet_analyzer_settings")
+                frequencies = f"{settings['BANDPASS_FMIN']} - {settings['BANDPASS_FMAX']} Hz"
+                speed = settings["AUDIO_SPEED"]
+                db.db.close()
+                
+                return (
+                    gr.Textbox(value=path, visible=True),
+                    gr.Number(value=embedding_count, visible=True),
+                    gr.Textbox(visible=True, value=frequencies),
+                    gr.Number(visible=True, value=speed),
+                    [],
+                    {},
+                    gr.Button(visible=True),
+                    gr.Textbox(value=None, visible=True),
+                )
+            except ValueError as e:
+                raise gr.Error(loc.localize("embeddings-search-db-selection-error")) from e
+        
+        return None, None, None, None, [], {}, gr.Button(visible=False), gr.Textbox(visible=False)
 
     def select_query_sample():
         file = gu.select_file(state_key="query_sample")
         return gr.Textbox(file, visible=True)
+    
+    def on_query_file_upload(file):
+        if file:
+            path = file.name if hasattr(file, 'name') else file
+            return gr.Textbox(path, visible=True)
+        return gr.Textbox(visible=False)
 
     select_query_btn.click(select_query_sample, outputs=[query_sample_tb])
 
@@ -335,7 +384,26 @@ def build_search_tab():
         ],
         show_progress="hidden",
     )
+    
+    db_directory_textbox.change(
+        on_db_textbox_change,
+        inputs=db_directory_textbox,
+        outputs=[
+            db_selection_tb,
+            db_embedding_count_number,
+            db_bandpass_frequencies_tb,
+            db_audio_speed_number,
+            results_state,
+            export_state,
+            select_query_btn,
+            query_sample_tb,
+        ],
+        show_progress="hidden",
+    )
 
+    select_query_btn.click(select_query_sample, outputs=[query_sample_tb])
+    query_file_upload.change(on_query_file_upload, inputs=query_file_upload, outputs=[query_sample_tb])
+    
     search_btn.click(
         run_search,
         inputs=[

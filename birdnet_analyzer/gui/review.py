@@ -101,7 +101,7 @@ def build_review_tab():
             ax.scatter(thresholds, target_ps, color=p_colors, marker="x")
 
             box = ax.get_position()
-            ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+            ax.set_position((box.x0, box.y0, box.width * 0.8, box.height))
 
             if any(threshold <= 1 for threshold in thresholds):
                 ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
@@ -125,7 +125,17 @@ def build_review_tab():
             }
         )
 
-        select_directory_btn = gr.Button(loc.localize("review-tab-input-directory-button-label"))
+        select_directory_btn = gr.Button(
+            loc.localize("review-tab-input-directory-button-label"),
+            visible=not gu._USE_SERVER
+        )
+
+        input_directory_textbox = gr.Textbox(
+            label=loc.localize("review-tab-input-directory-button-label"),
+            placeholder="Enter input directory path" if gu._USE_SERVER else "",
+            visible=gu._USE_SERVER,
+            interactive=gu._USE_SERVER,
+        )
 
         with gr.Column(visible=False) as review_col:
             with gr.Row():
@@ -261,6 +271,19 @@ def build_review_tab():
 
             if dir_name:
                 next_review_state["input_directory"] = dir_name
+                specieslist = [
+                    e.name for e in os.scandir(next_review_state["input_directory"]) if e.is_dir() and e.name not in (POSITIVE_LABEL_DIR, NEGATIVE_LABEL_DIR)
+                ]
+
+                next_review_state["species_list"] = specieslist
+
+                return update_review(next_review_state)
+
+            return {review_state: next_review_state}
+        
+        def start_review_from_textbox(path, next_review_state):
+            if path and os.path.isdir(path):
+                next_review_state["input_directory"] = path
                 specieslist = [
                     e.name for e in os.scandir(next_review_state["input_directory"]) if e.is_dir() and e.name not in (POSITIVE_LABEL_DIR, NEGATIVE_LABEL_DIR)
                 ]
@@ -463,6 +486,13 @@ def build_review_tab():
         select_directory_btn.click(
             start_review,
             inputs=review_state,
+            outputs=review_change_output,
+            show_progress="full",
+        )
+        
+        input_directory_textbox.change(
+            start_review_from_textbox,
+            inputs=[input_directory_textbox, review_state],
             outputs=review_change_output,
             show_progress="full",
         )

@@ -97,25 +97,48 @@ def build_embeddings_tab():
         def select_directory_to_state_and_tb(current, state_key=None):
             path = gu.select_directory(collect_files=False, state_key=state_key) or current or None
             return path, path
+        
+        def on_textbox_change(path):
+            if path and os.path.isdir(path):
+                return path, path
+            return None, None
 
         with gr.Group(), gr.Row(equal_height=True):
-            select_audio_directory_btn = gr.Button(loc.localize("embeddings-tab-select-input-directory-button-label"))
-            selected_audio_directory_tb = gr.Textbox(show_label=False, interactive=False, scale=2)
+            select_audio_directory_btn = gr.Button(
+                loc.localize("embeddings-tab-select-input-directory-button-label"),
+                visible=not gu._USE_SERVER
+            )
+            selected_audio_directory_tb = gr.Textbox(
+                show_label=False,
+                interactive=gu._USE_SERVER,
+                scale=2,
+                placeholder="Enter input audio directory path" if gu._USE_SERVER else ""
+            )
             select_audio_directory_btn.click(
                 partial(select_directory_to_state_and_tb, state_key="embeddings-input-dir"),
                 inputs=[input_directory_state],
                 outputs=[selected_audio_directory_tb, input_directory_state],
                 show_progress="hidden",
             )
+            selected_audio_directory_tb.change(
+                on_textbox_change,
+                inputs=selected_audio_directory_tb,
+                outputs=[selected_audio_directory_tb, input_directory_state],
+                show_progress="hidden",
+            )
 
         with gr.Group(), gr.Row(equal_height=True):
-            select_db_directory_btn = gr.Button(loc.localize("embeddings-tab-select-db-directory-button-label"))
+            select_db_directory_btn = gr.Button(
+                loc.localize("embeddings-tab-select-db-directory-button-label"),
+                visible=not gu._USE_SERVER
+            )
             db_path_tb = gr.Textbox(
                 show_label=False,
                 show_copy_button=True,
-                interactive=False,
+                interactive=gu._USE_SERVER,
                 info="⚠️ " + loc.localize("embeddings-tab-dp-path-textbox-info"),
                 scale=2,
+                placeholder="Enter database directory path" if gu._USE_SERVER else ""
             )
 
         with gr.Group(visible=False) as file_output_row, gr.Row(equal_height=True):
@@ -236,6 +259,17 @@ def build_embeddings_tab():
         select_db_directory_btn.click(
             select_directory_and_update_tb,
             inputs=[db_directory_state],
+            outputs=[db_directory_state, db_path_tb, audio_speed_slider, fmin_number, fmax_number, file_output_row],
+            show_progress="hidden",
+        )
+        
+        db_path_tb.change(
+            lambda path: (
+                (path, gr.Textbox(value=path), gr.Slider(interactive=True), gr.Number(interactive=True), gr.Number(interactive=True), gr.update(visible=True))
+                if path and os.path.isdir(path)
+                else (None, gr.update(), gr.update(), gr.update(), gr.update(), gr.update())
+            ),
+            inputs=db_path_tb,
             outputs=[db_directory_state, db_path_tb, audio_speed_slider, fmin_number, fmax_number, file_output_row],
             show_progress="hidden",
         )

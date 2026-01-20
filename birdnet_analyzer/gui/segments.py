@@ -92,42 +92,74 @@ def build_segments_tab():
 
         def select_directory_to_state_and_tb(state_key):
             return (gu.select_directory(collect_files=False, state_key=state_key),) * 2
+        
+        def on_textbox_change(path):
+            if path and os.path.isdir(path):
+                return path, path
+            return None, None
 
         with gr.Row():
             select_audio_directory_btn = gr.Button(
-                loc.localize("segments-tab-select-audio-input-directory-button-label")
+                loc.localize("segments-tab-select-audio-input-directory-button-label"),
+                visible=not gu._USE_SERVER
             )
-            selected_audio_directory_tb = gr.Textbox(show_label=False, interactive=False)
+            selected_audio_directory_tb = gr.Textbox(
+                show_label=False,
+                interactive=gu._USE_SERVER,
+                placeholder="Enter audio directory path" if gu._USE_SERVER else ""
+            )
             select_audio_directory_btn.click(
                 partial(select_directory_to_state_and_tb, state_key="segments-audio-dir"),
+                outputs=[selected_audio_directory_tb, audio_directory_state],
+                show_progress="hidden",
+            )
+            selected_audio_directory_tb.change(
+                on_textbox_change,
+                inputs=selected_audio_directory_tb,
                 outputs=[selected_audio_directory_tb, audio_directory_state],
                 show_progress="hidden",
             )
 
         with gr.Row():
             select_result_directory_btn = gr.Button(
-                loc.localize("segments-tab-select-results-input-directory-button-label")
+                loc.localize("segments-tab-select-results-input-directory-button-label"),
+                visible=not gu._USE_SERVER
             )
             selected_result_directory_tb = gr.Textbox(
                 show_label=False,
-                interactive=False,
-                placeholder=loc.localize("segments-tab-results-input-textbox-placeholder"),
+                interactive=gu._USE_SERVER,
+                placeholder="Enter results directory path" if gu._USE_SERVER else loc.localize("segments-tab-results-input-textbox-placeholder"),
             )
             select_result_directory_btn.click(
                 partial(select_directory_to_state_and_tb, state_key="segments-result-dir"),
                 outputs=[result_directory_state, selected_result_directory_tb],
                 show_progress="hidden",
             )
+            selected_result_directory_tb.change(
+                on_textbox_change,
+                inputs=selected_result_directory_tb,
+                outputs=[result_directory_state, selected_result_directory_tb],
+                show_progress="hidden",
+            )
 
         with gr.Row():
-            select_output_directory_btn = gr.Button(loc.localize("segments-tab-output-selection-button-label"))
+            select_output_directory_btn = gr.Button(
+                loc.localize("segments-tab-output-selection-button-label"),
+                visible=not gu._USE_SERVER
+            )
             selected_output_directory_tb = gr.Textbox(
                 show_label=False,
-                interactive=False,
-                placeholder=loc.localize("segments-tab-output-selection-textbox-placeholder"),
+                interactive=gu._USE_SERVER,
+                placeholder="Enter output directory path" if gu._USE_SERVER else loc.localize("segments-tab-output-selection-textbox-placeholder"),
             )
             select_output_directory_btn.click(
                 partial(select_directory_to_state_and_tb, state_key="segments-output-dir"),
+                outputs=[selected_output_directory_tb, output_directory_state],
+                show_progress="hidden",
+            )
+            selected_output_directory_tb.change(
+                on_textbox_change,
+                inputs=selected_output_directory_tb,
                 outputs=[selected_output_directory_tb, output_directory_state],
                 show_progress="hidden",
             )
