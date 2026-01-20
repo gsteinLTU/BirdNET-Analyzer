@@ -17,4 +17,5 @@ def main():
             search.build_search_tab,
             evaluation.build_evaluation_tab,
         ]
+        , use_server=True
     )

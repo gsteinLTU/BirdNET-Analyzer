@@ -29,7 +29,16 @@ def run_species_list(out_path, filename, lat, lon, week, use_yearlong, sf_thresh
 def build_species_tab():
     with gr.Tab(loc.localize("species-tab-title")) as species_tab:
         output_directory_state = gr.State()
-        select_directory_btn = gr.Button(loc.localize("species-tab-select-output-directory-button-label"))
+        select_directory_btn = gr.Button(
+            loc.localize("species-tab-select-output-directory-button-label"),
+            visible=not gu._USE_SERVER
+        )
+        output_directory_textbox = gr.Textbox(
+            label=loc.localize("species-tab-select-output-directory-button-label"),
+            placeholder="Enter output directory path" if gu._USE_SERVER else "",
+            visible=gu._USE_SERVER,
+            interactive=gu._USE_SERVER,
+        )
         classifier_name = gr.Textbox(
             "species_list.txt",
             visible=False,
@@ -46,11 +55,23 @@ def build_species_tab():
                     gr.Textbox(label=dir_name, visible=True, value=name_tb),
                 )
 
-            return None, name_tb
+            return None, gr.update()
+        
+        def on_output_textbox_change(path, name_tb):
+            if path and os.path.isdir(path):
+                return path, gr.Textbox(label=path, visible=True, value=name_tb)
+            return None, gr.update()
 
         select_directory_btn.click(
             select_directory_and_update_tb,
             inputs=classifier_name,
+            outputs=[output_directory_state, classifier_name],
+            show_progress="hidden",
+        )
+        
+        output_directory_textbox.change(
+            on_output_textbox_change,
+            inputs=[output_directory_textbox, classifier_name],
             outputs=[output_directory_state, classifier_name],
             show_progress="hidden",
         )

@@ -32,6 +32,7 @@ _USE_PERCH = loc.localize("species-list-radio-option-use-perch")
 _USE_BIRDNET = "BirdNET " + cfg.MODEL_VERSION
 _WINDOW: webview.Window | None = None
 _URL = ""
+_USE_SERVER = False
 _HEART_LOGO = "data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjE2IiB2aWV3Qm94PSIwIDAgMTYgMTYiIHZlcnNpb249IjEuMSIgd2lkdGg9IjE2IiBkYXRhLXZpZXctY29tcG9uZW50PSJ0cnVlIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPg0KICAgIDxwYXRoIGQ9Im04IDE0LjI1LjM0NS42NjZhLjc1Ljc1IDAgMCAxLS42OSAwbC0uMDA4LS4wMDQtLjAxOC0uMDFhNy4xNTIgNy4xNTIgMCAwIDEtLjMxLS4xNyAyMi4wNTUgMjIuMDU1IDAgMCAxLTMuNDM0LTIuNDE0QzIuMDQ1IDEwLjczMSAwIDguMzUgMCA1LjUgMCAyLjgzNiAyLjA4NiAxIDQuMjUgMSA1Ljc5NyAxIDcuMTUzIDEuODAyIDggMy4wMiA4Ljg0NyAxLjgwMiAxMC4yMDMgMSAxMS43NSAxIDEzLjkxNCAxIDE2IDIuODM2IDE2IDUuNWMwIDIuODUtMi4wNDUgNS4yMzEtMy44ODUgNi44MThhMjIuMDY2IDIyLjA2NiAwIDAgMS0zLjc0NCAyLjU4NGwtLjAxOC4wMS0uMDA2LjAwM2gtLjAwMlpNNC4yNSAyLjVjLTEuMzM2IDAtMi43NSAxLjE2NC0yLjc1IDMgMCAyLjE1IDEuNTggNC4xNDQgMy4zNjUgNS42ODJBMjAuNTggMjAuNTggMCAwIDAgOCAxMy4zOTNhMjAuNTggMjAuNTggMCAwIDAgMy4xMzUtMi4yMTFDMTIuOTIgOS42NDQgMTQuNSA3LjY1IDE0LjUgNS41YzAtMS44MzYtMS40MTQtMy0yLjc1LTMtMS4zNzMgMC0yLjYwOS45ODYtMy4wMjkgMi40NTZhLjc0OS43NDkgMCAwIDEtMS40NDIgMEM2Ljg1OSAzLjQ4NiA1LjYyMyAyLjUgNC4yNSAyLjVaIj48L3BhdGg+DQo8L3N2Zz4="  # noqa: E501
 _SAMPLE_KEYS = Literal[
     "use_top_n_checkbox",
@@ -80,6 +81,7 @@ def gui_runtime_error_handler(f):
             return f(*args, **kwargs)
         except Exception as e:
             utils.write_error_log(e)
+            print(e)
             raise gr.Error(message=str(e), duration=None) from e
 
     return wrapper
@@ -98,6 +100,9 @@ def select_folder(state_key=None):
     Returns:
         str: The path of the selected folder, or None if no folder was selected.
     """
+    if _USE_SERVER:
+        return None
+    
     if sys.platform == "win32":
         from tkinter import Tk, filedialog
 
@@ -535,6 +540,9 @@ def save_file_dialog(filetypes=(), state_key=None, default_filename=""):
     Returns:
         The selected file or None of the dialog was canceled.
     """
+    if _USE_SERVER:
+        return None
+    
     initial_selection = settings.get_state(state_key, "") if state_key else ""
     file = _WINDOW.create_file_dialog(webview.FileDialog.SAVE, file_types=filetypes, directory=initial_selection, save_filename=default_filename)
 
@@ -558,6 +566,9 @@ def select_file(filetypes=(), state_key=None):
     Returns:
         The selected file or None of the dialog was canceled.
     """
+    if _USE_SERVER:
+        return None
+    
     initial_selection = settings.get_state(state_key, "") if state_key else ""
     files = _WINDOW.create_file_dialog(webview.FileDialog.OPEN, file_types=filetypes, directory=initial_selection)
 
@@ -568,6 +579,98 @@ def select_file(filetypes=(), state_key=None):
         return files[0]
 
     return None
+
+
+def file_selector(label: str, file_types: list[str] | None = None, state_key: str | None = None, button_label: str | None = None):
+    """Creates a server-aware file selection component.
+    
+    In webview mode: Shows a button that opens a native file dialog.
+    In server mode: Shows a file upload component.
+    
+    Args:
+        label: Label for the file upload component (server mode).
+        file_types: List of file extensions like [".txt", ".csv"] (server mode).
+        state_key: Key for storing last used directory (webview mode).
+        button_label: Label for the button (webview mode). Defaults to label.
+    
+    Returns:
+        Tuple of (button, file_component, state) - use the appropriate one based on mode.
+    """
+    button_label = button_label or label
+    
+    with gr.Row(visible=not _USE_SERVER) as button_row:
+        button = gr.Button(button_label)
+    
+    file_upload = gr.File(
+        label=label,
+        file_types=file_types,
+        visible=_USE_SERVER,
+        interactive=_USE_SERVER,
+    )
+    
+    file_state = gr.State()
+    
+    def on_button_click():
+        file = select_file(tuple(f"{ft} files (*{ft})" for ft in file_types) if file_types else (), state_key=state_key)
+        if file:
+            return file, gr.update(value=file)
+        return None, None
+    
+    def on_file_upload(file):
+        if file:
+            path = file.name if hasattr(file, 'name') else file
+            return path, path
+        return None, None
+    
+    button.click(on_button_click, outputs=[file_state, file_upload], show_progress="hidden")
+    file_upload.change(on_file_upload, inputs=file_upload, outputs=[file_state, file_upload], show_progress="hidden")
+    
+    return button, file_upload, file_state
+
+
+def folder_selector(label: str, state_key: str | None = None, button_label: str | None = None):
+    """Creates a server-aware folder selection component.
+    
+    In webview mode: Shows a button that opens a native folder dialog.
+    In server mode: Shows a textbox for entering folder path or uploading files.
+    
+    Args:
+        label: Label for the folder input component.
+        state_key: Key for storing last used directory (webview mode).
+        button_label: Label for the button (webview mode). Defaults to label.
+    
+    Returns:
+        Tuple of (button, textbox, state) - use the appropriate one based on mode.
+    """
+    button_label = button_label or label
+    
+    with gr.Row(visible=not _USE_SERVER) as button_row:
+        button = gr.Button(button_label)
+    
+    folder_textbox = gr.Textbox(
+        label=label,
+        placeholder="Enter folder path" if _USE_SERVER else "",
+        visible=_USE_SERVER,
+        interactive=_USE_SERVER,
+    )
+    
+    folder_state = gr.State()
+    
+    def on_button_click():
+        folder = select_folder(state_key=state_key)
+        if folder:
+            return folder, folder
+        return None, None
+    
+    def on_textbox_change(path):
+        if path and os.path.isdir(path):
+            return path
+        return None
+    
+    button.click(on_button_click, outputs=[folder_state, folder_textbox], show_progress="hidden")
+    folder_textbox.change(on_textbox_change, inputs=folder_textbox, outputs=folder_state, show_progress="hidden")
+    
+    return button, folder_textbox, folder_state
 
 
 def show_species_choice(choice: str, file_input):
@@ -617,8 +720,14 @@ def model_selection(opened=True):
             )
 
             with gr.Column(visible=False) as custom_classifier_selector:
-                classifier_selection_button = gr.Button(loc.localize("species-list-custom-classifier-selection-button-label"))
-                classifier_file_input = gr.Files(file_types=[".tflite"], visible=False, interactive=False, show_label=False)
+                classifier_selection_button = gr.Button(loc.localize("species-list-custom-classifier-selection-button-label"), visible=not _USE_SERVER)
+                classifier_file_input = gr.Files(
+                    file_types=[".tflite"], 
+                    visible=_USE_SERVER, 
+                    interactive=_USE_SERVER, 
+                    show_label=_USE_SERVER,
+                    label="Upload TFLite Classifier" if _USE_SERVER else None
+                )
                 selected_classifier_state = gr.State()
 
                 def on_custom_classifier_selection_click():
@@ -643,11 +752,41 @@ def model_selection(opened=True):
                         gr.update(value=file, visible=True),
                         gr.update(value=utils.read_lines(labels), visible=True),
                     )
+                
+                def on_classifier_file_upload(files):
+                    if not files or len(files) == 0:
+                        return None, None, None
+                    
+                    file = files[0] if isinstance(files, list) else files
+                    file_path = file.name if hasattr(file, 'name') else file
+                    
+                    base_name = os.path.splitext(file_path)[0]
+                    labels = base_name + "_Labels.txt"
+
+                    if not os.path.isfile(labels):
+                        labels = file_path.replace("Model_FP32.tflite", "Labels.txt")
+
+                    if not os.path.isfile(labels):
+                        gr.Warning(loc.localize("species-list-custom-classifier-no-labelfile-warning"))
+                        return file_path, gr.update(visible=True), gr.update(visible=False)
+
+                    return (
+                        file_path,
+                        gr.update(visible=True),
+                        gr.update(value=utils.read_lines(labels), visible=True),
+                    )
 
         species_list_df = gr.List(value=[], headers=["Species"], max_height=200, show_label=False, visible=False)
 
     classifier_selection_button.click(
         on_custom_classifier_selection_click,
+        outputs=[selected_classifier_state, classifier_file_input, species_list_df],
+        show_progress="hidden",
+    )
+    
+    classifier_file_input.change(
+        on_classifier_file_upload,
+        inputs=classifier_file_input,
         outputs=[selected_classifier_state, classifier_file_input, species_list_df],
         show_progress="hidden",
     )
@@ -823,13 +962,16 @@ def _get_win_drives():
     return [f"{drive}:\\" for drive in UPPER_CASE] + _get_network_shortcuts()
 
 
-def open_window(builder: list[Callable] | Callable):
+def open_window(builder: list[Callable] | Callable, use_server: bool = False):
     """
-    Opens a GUI window using the Gradio library and the webview module.
+    Opens a GUI window using the Gradio library.
+    
     Args:
         builder (list[Callable] | Callable): A callable or a list of callables that build the GUI components.
+        use_server (bool): If True, launches as a normal web server. If False (default), uses webview.
     """
-    global _URL
+    global _URL, _USE_SERVER
+    _USE_SERVER = use_server
     multiprocessing.freeze_support()
 
     utils.ensure_model_exists()
@@ -866,40 +1008,52 @@ def open_window(builder: list[Callable] | Callable):
 
             demo.load(update_plots, inputs=inputs, outputs=outputs)
 
-    _URL = demo.queue(api_open=False).launch(
-        prevent_thread_lock=True,
-        quiet=True,
-        show_api=False,
-        enable_monitoring=False,
-        allowed_paths=_get_win_drives() if sys.platform == "win32" else ["/"],
-    )[1]
-    webview.settings["ALLOW_DOWNLOADS"] = True
-    _WINDOW = webview.create_window(
-        "BirdNET-Analyzer",
-        _URL.rstrip("/") + f"?__theme={settings.theme()}",
-        width=1300,
-        height=900,
-        min_size=(1300, 900),
-    )
-    set_window(_WINDOW)
-
-    with suppress(ModuleNotFoundError):
-        import pyi_splash  # type: ignore
-
-        pyi_splash.close()
-
-    if sys.platform == "win32":
-        import ctypes
-        from ctypes import wintypes
-
-        from webview.platforms.winforms import BrowserView
-
-        dwmapi = ctypes.windll.LoadLibrary("dwmapi")
-        _WINDOW.events.loaded += lambda: dwmapi.DwmSetWindowAttribute(
-            BrowserView.instances[_WINDOW.uid].Handle.ToInt32(),
-            20,  # DWMWA_USE_IMMERSIVE_DARK_MODE
-            ctypes.byref(ctypes.c_bool(settings.theme() == "dark")),
-            ctypes.sizeof(wintypes.BOOL),
+    if use_server:
+        # Launch as a normal web server
+        _URL = demo.queue(api_open=False).launch(
+            prevent_thread_lock=False,
+            quiet=False,
+            show_api=False,
+            enable_monitoring=False,
+            server_name="127.0.0.1",
+            server_port=None
+        )[1]
+    else:
+        # Launch in webview
+        _URL = demo.queue(api_open=False).launch(
+            prevent_thread_lock=True,
+            quiet=True,
+            show_api=False,
+            enable_monitoring=False,
+            allowed_paths=_get_win_drives() if sys.platform == "win32" else ["/"],
+        )[1]
+        webview.settings["ALLOW_DOWNLOADS"] = True
+        _WINDOW = webview.create_window(
+            "BirdNET-Analyzer",
+            _URL.rstrip("/") + f"?__theme={settings.theme()}",
+            width=1300,
+            height=900,
+            min_size=(1300, 900),
         )
+        set_window(_WINDOW)
 
-    webview.start(private_mode=False)
+        with suppress(ModuleNotFoundError):
+            import pyi_splash  # type: ignore
+
+            pyi_splash.close()
+
+        if sys.platform == "win32":
+            import ctypes
+            from ctypes import wintypes
+
+            from webview.platforms.winforms import BrowserView
+
+            dwmapi = ctypes.windll.LoadLibrary("dwmapi")
+            _WINDOW.events.loaded += lambda: dwmapi.DwmSetWindowAttribute(
+                BrowserView.instances[_WINDOW.uid].Handle.ToInt32(),
+                20,  # DWMWA_USE_IMMERSIVE_DARK_MODE
+                ctypes.byref(ctypes.c_bool(settings.theme() == "dark")),
+                ctypes.sizeof(wintypes.BOOL),
+            )
+
+        webview.start(private_mode=False)

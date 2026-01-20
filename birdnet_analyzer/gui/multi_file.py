@@ -1,3 +1,5 @@
+import os
+
 import gradio as gr
 
 import birdnet_analyzer.config as cfg
@@ -122,7 +124,16 @@ def build_multi_analysis_tab():
 
         with gr.Row():
             with gr.Column():
-                select_directory_btn = gr.Button(loc.localize("multi-tab-input-selection-button-label"))
+                select_directory_btn = gr.Button(
+                    loc.localize("multi-tab-input-selection-button-label"),
+                    visible=not gu._USE_SERVER
+                )
+                input_directory_textbox = gr.Textbox(
+                    label=loc.localize("multi-tab-input-selection-button-label"),
+                    placeholder="Enter input folder path" if gu._USE_SERVER else "",
+                    visible=gu._USE_SERVER,
+                    interactive=gu._USE_SERVER,
+                )
                 directory_input = gr.Matrix(
                     interactive=False,
                     headers=[
@@ -141,24 +152,47 @@ def build_multi_analysis_tab():
                         return [folder, files_and_durations]
 
                     return ["", [[loc.localize("multi-tab-samples-dataframe-no-files-found")]]]
+                
+                def on_input_textbox_change(path):
+                    if path and os.path.isdir(path):
+                        files_and_durations = gu.get_audio_files_and_durations(path)
+                        if len(files_and_durations) > 100:
+                            return [path, [*files_and_durations[:100], ("...", "...")]]
+                        return [path, files_and_durations]
+                    return ["", [[loc.localize("multi-tab-samples-dataframe-no-files-found")]]]
 
                 select_directory_btn.click(select_directory_on_empty, outputs=[input_directory_state, directory_input], show_progress="full")
+                input_directory_textbox.change(on_input_textbox_change, inputs=input_directory_textbox, outputs=[input_directory_state, directory_input], show_progress="full")
 
             with gr.Column():
-                select_out_directory_btn = gr.Button(loc.localize("multi-tab-output-selection-button-label"))
+                select_out_directory_btn = gr.Button(
+                    loc.localize("multi-tab-output-selection-button-label"),
+                    visible=not gu._USE_SERVER
+                )
                 selected_out_textbox = gr.Textbox(
                     label=loc.localize("multi-tab-output-textbox-label"),
-                    interactive=False,
-                    placeholder=loc.localize("multi-tab-output-textbox-placeholder"),
+                    interactive=gu._USE_SERVER,
+                    placeholder="Enter output folder path" if gu._USE_SERVER else loc.localize("multi-tab-output-textbox-placeholder"),
                 )
 
                 def select_directory_wrapper():  # Nishant - Function modified for For Folder selection
                     folder = gu.select_folder(state_key="batch-analysis-output-dir")
                     return (folder, folder) if folder else ("", "")
+                
+                def on_output_textbox_change(path):
+                    if path:
+                        return path
+                    return ""
 
                 select_out_directory_btn.click(
                     select_directory_wrapper,
                     outputs=[output_directory_predict_state, selected_out_textbox],
+                    show_progress="hidden",
+                )
+                selected_out_textbox.change(
+                    on_output_textbox_change,
+                    inputs=selected_out_textbox,
+                    outputs=output_directory_predict_state,
                     show_progress="hidden",
                 )
 

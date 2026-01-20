@@ -242,32 +242,87 @@ def build_train_tab():
 
         with gr.Row():
             with gr.Column():
-                select_directory_btn = gr.Button(loc.localize("training-tab-input-selection-button-label"))
+                select_directory_btn = gr.Button(
+                    loc.localize("training-tab-input-selection-button-label"),
+                    visible=not gu._USE_SERVER
+                )
+                input_directory_textbox = gr.Textbox(
+                    label=loc.localize("training-tab-input-selection-button-label"),
+                    placeholder="Enter training data directory path" if gu._USE_SERVER else "",
+                    visible=gu._USE_SERVER,
+                    interactive=gu._USE_SERVER,
+                )
                 directory_input = gr.List(
                     headers=[loc.localize("training-tab-classes-dataframe-column-classes-header")],
                     interactive=False,
                     max_height=_GRID_MAX_HEIGHT,
                 )
+                
+                def on_input_textbox_change(path):
+                    if path and os.path.isdir(path):
+                        subdirs = [f.name for f in os.scandir(path) if f.is_dir()]
+                        return path, subdirs
+                    return None, []
+                
                 select_directory_btn.click(
                     partial(select_subdirectories, state_key="train-data-dir"),
                     outputs=[input_directory_state, directory_input],
                     show_progress="hidden",
                 )
+                
+                input_directory_textbox.change(
+                    on_input_textbox_change,
+                    inputs=input_directory_textbox,
+                    outputs=[input_directory_state, directory_input],
+                    show_progress="hidden",
+                )
 
-                select_test_directory_btn = gr.Button(loc.localize("training-tab-test-data-selection-button-label"))
+                select_test_directory_btn = gr.Button(
+                    loc.localize("training-tab-test-data-selection-button-label"),
+                    visible=not gu._USE_SERVER
+                )
+                test_directory_textbox = gr.Textbox(
+                    label=loc.localize("training-tab-test-data-selection-button-label"),
+                    placeholder="Enter test data directory path (optional)" if gu._USE_SERVER else "",
+                    visible=gu._USE_SERVER,
+                    interactive=gu._USE_SERVER,
+                )
                 test_directory_input = gr.List(
                     headers=[loc.localize("training-tab-classes-dataframe-column-classes-header")],
                     interactive=False,
                     max_height=_GRID_MAX_HEIGHT,
                 )
+                
+                def on_test_textbox_change(path):
+                    if path and os.path.isdir(path):
+                        subdirs = [f.name for f in os.scandir(path) if f.is_dir()]
+                        return path, subdirs
+                    return None, []
+                
                 select_test_directory_btn.click(
                     partial(select_subdirectories, state_key="test-data-dir"),
                     outputs=[test_data_dir_state, test_directory_input],
                     show_progress="hidden",
                 )
+                
+                test_directory_textbox.change(
+                    on_test_textbox_change,
+                    inputs=test_directory_textbox,
+                    outputs=[test_data_dir_state, test_directory_input],
+                    show_progress="hidden",
+                )
 
             with gr.Column():
-                select_classifier_directory_btn = gr.Button(loc.localize("training-tab-select-output-button-label"))
+                select_classifier_directory_btn = gr.Button(
+                    loc.localize("training-tab-select-output-button-label"),
+                    visible=not gu._USE_SERVER
+                )
+                output_directory_textbox = gr.Textbox(
+                    label=loc.localize("training-tab-select-output-button-label"),
+                    placeholder="Enter output directory path" if gu._USE_SERVER else "",
+                    visible=gu._USE_SERVER,
+                    interactive=gu._USE_SERVER,
+                )
 
                 with gr.Column():
                     classifier_name = gr.Textbox(
@@ -293,10 +348,26 @@ def build_train_tab():
                             gr.Radio(visible=True, interactive=True),
                         )
 
-                    return None, None
+                    return None, gr.update(), gr.update()
+                
+                def on_output_textbox_change(path):
+                    if path and os.path.isdir(path):
+                        return (
+                            path,
+                            gr.Textbox(label=path, visible=True),
+                            gr.Radio(visible=True, interactive=True),
+                        )
+                    return None, gr.update(), gr.update()
 
                 select_classifier_directory_btn.click(
                     select_directory_and_update_tb,
+                    outputs=[output_directory_state, classifier_name, output_format],
+                    show_progress="hidden",
+                )
+                
+                output_directory_textbox.change(
+                    on_output_textbox_change,
+                    inputs=output_directory_textbox,
                     outputs=[output_directory_state, classifier_name, output_format],
                     show_progress="hidden",
                 )
@@ -314,7 +385,16 @@ def build_train_tab():
                 info=loc.localize("training-tab-cache-mode-radio-info"),
             )
             with gr.Column(visible=False) as new_cache_file_row:
-                select_cache_file_directory_btn = gr.Button(loc.localize("training-tab-cache-select-directory-button-label"))
+                select_cache_file_directory_btn = gr.Button(
+                    loc.localize("training-tab-cache-select-directory-button-label"),
+                    visible=not gu._USE_SERVER
+                )
+                cache_directory_textbox = gr.Textbox(
+                    label=loc.localize("training-tab-cache-select-directory-button-label"),
+                    placeholder="Enter cache file output directory path" if gu._USE_SERVER else "",
+                    visible=gu._USE_SERVER,
+                    interactive=gu._USE_SERVER,
+                )
 
                 with gr.Column():
                     cache_file_name = gr.Textbox(
@@ -332,17 +412,37 @@ def build_train_tab():
                             gr.Textbox(label=dir_name, visible=True),
                         )
 
-                    return None, None
+                    return None, gr.update()
+                
+                def on_cache_directory_change(path):
+                    if path and os.path.isdir(path):
+                        return path, gr.Textbox(label=path, visible=True)
+                    return None, gr.update()
 
                 select_cache_file_directory_btn.click(
                     select_directory_and_update,
                     outputs=[cache_file_state, cache_file_name],
                     show_progress="hidden",
                 )
+                
+                cache_directory_textbox.change(
+                    on_cache_directory_change,
+                    inputs=cache_directory_textbox,
+                    outputs=[cache_file_state, cache_file_name],
+                    show_progress="hidden",
+                )
 
             with gr.Column(visible=False) as load_cache_file_row:
-                selected_cache_file_btn = gr.Button(loc.localize("training-tab-cache-select-file-button-label"))
-                cache_file_input = gr.File(file_types=[".npz"], visible=False, interactive=False)
+                selected_cache_file_btn = gr.Button(
+                    loc.localize("training-tab-cache-select-file-button-label"),
+                    visible=not gu._USE_SERVER
+                )
+                cache_file_input = gr.File(
+                    file_types=[".npz"],
+                    visible=gu._USE_SERVER,
+                    interactive=gu._USE_SERVER,
+                    label="Upload Cache File (.npz)" if gu._USE_SERVER else None
+                )
 
                 def on_cache_file_selection_click():
                     file = gu.select_file(("NPZ file (*.npz)",), state_key="train_data_cache_file")
@@ -350,10 +450,23 @@ def build_train_tab():
                     if file:
                         return file, gr.File(value=file, visible=True)
 
-                    return None, None
+                    return None, gr.update()
+                
+                def on_cache_file_upload(file):
+                    if file:
+                        path = file.name if hasattr(file, 'name') else file
+                        return path, gr.File(visible=True)
+                    return None, gr.update()
 
                 selected_cache_file_btn.click(
                     on_cache_file_selection_click,
+                    outputs=[cache_file_state, cache_file_input],
+                    show_progress="hidden",
+                )
+                
+                cache_file_input.change(
+                    on_cache_file_upload,
+                    inputs=cache_file_input,
                     outputs=[cache_file_state, cache_file_input],
                     show_progress="hidden",
                 )
