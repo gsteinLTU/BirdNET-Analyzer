@@ -222,16 +222,22 @@ def build_single_analysis_tab():
 
         def download_table(filepath):
             if filepath:
-                ext = os.path.splitext(filepath)[1]
-                file_location = gu.save_file_dialog(
-                    state_key="single-file-table",
-                    default_filename=os.path.basename(filepath),
-                    filetypes=(f"{ext[1:]} (*{ext})",),
-                )
+                if gu._USE_SERVER:
+                    # In server mode, return the file for download
+                    return gr.update(value=filepath)
+                else:
+                    # In webview mode, use save dialog
+                    ext = os.path.splitext(filepath)[1]
+                    file_location = gu.save_file_dialog(
+                        state_key="single-file-table",
+                        default_filename=os.path.basename(filepath),
+                        filetypes=(f"{ext[1:]} (*{ext})",),
+                    )
 
-                if file_location:
-                    with open(filepath, "rb") as src, open(file_location, "wb") as dst:
-                        dst.write(src.read())
+                    if file_location:
+                        with open(filepath, "rb") as src, open(file_location, "wb") as dst:
+                            dst.write(src.read())
+            return gr.update()
 
         output_dataframe.select(get_selected_audio, inputs=audio_path_state, outputs=segment_audio)
         single_file_analyze.click(run_single_file_analysis, inputs=inputs, outputs=[output_dataframe, action_row, table_path_state])

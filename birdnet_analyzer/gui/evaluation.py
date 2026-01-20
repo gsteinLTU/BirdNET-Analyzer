@@ -383,12 +383,29 @@ def build_evaluation_tab():
                     return [files, files_to_display, gr.update(visible=True), *on_select(files)]
 
                 return ["", [[loc.localize("eval-tab-no-files-found")]]]
+            
+            def select_directory_from_textbox(path):
+                if path and os.path.isdir(path):
+                    files = get_selection_tables(path)
+                    files_to_display = [*files[:100], ["..."]] if len(files) > 100 else files
+                    return [files, files_to_display, gr.update(visible=True), *on_select(files)]
+                
+                return ["", [[loc.localize("eval-tab-no-files-found")]]]
 
-            return select_directory_on_empty
+            return select_directory_on_empty, select_directory_from_textbox
 
         with gr.Row():
             with gr.Column():
-                annotation_select_directory_btn = gr.Button(loc.localize("eval-tab-annotation-selection-button-label"))
+                annotation_select_directory_btn = gr.Button(
+                    loc.localize("eval-tab-annotation-selection-button-label"),
+                    visible=not gu._USE_SERVER
+                )
+                annotation_directory_textbox = gr.Textbox(
+                    label=loc.localize("eval-tab-annotation-selection-button-label"),
+                    placeholder="Enter annotation files directory path" if gu._USE_SERVER else "",
+                    visible=gu._USE_SERVER,
+                    interactive=gu._USE_SERVER,
+                )
                 annotation_directory_input = gr.Matrix(
                     interactive=False,
                     headers=[
@@ -397,7 +414,16 @@ def build_evaluation_tab():
                 )
 
             with gr.Column():
-                prediction_select_directory_btn = gr.Button(loc.localize("eval-tab-prediction-selection-button-label"))
+                prediction_select_directory_btn = gr.Button(
+                    loc.localize("eval-tab-prediction-selection-button-label"),
+                    visible=not gu._USE_SERVER
+                )
+                prediction_directory_textbox = gr.Textbox(
+                    label=loc.localize("eval-tab-prediction-selection-button-label"),
+                    placeholder="Enter prediction files directory path" if gu._USE_SERVER else "",
+                    visible=gu._USE_SERVER,
+                    interactive=gu._USE_SERVER,
+                )
                 prediction_directory_input = gr.Matrix(
                     interactive=False,
                     headers=[
@@ -751,14 +777,30 @@ def build_evaluation_tab():
         )
 
         annotation_select_directory_btn.click(
-            get_selection_func("eval-annotations-dir", update_annotation_columns),
+            get_selection_func("eval-annotations-dir", update_annotation_columns)[0],
+            outputs=[annotation_files_state, annotation_directory_input, annotation_group]
+            + [annotation_columns[label] for label in ["Start Time", "End Time", "Class", "Recording", "Duration"]],
+            show_progress="full",
+        )
+        
+        annotation_directory_textbox.change(
+            get_selection_func("eval-annotations-dir", update_annotation_columns)[1],
+            inputs=annotation_directory_textbox,
             outputs=[annotation_files_state, annotation_directory_input, annotation_group]
             + [annotation_columns[label] for label in ["Start Time", "End Time", "Class", "Recording", "Duration"]],
             show_progress="full",
         )
 
         prediction_select_directory_btn.click(
-            get_selection_func("eval-predictions-dir", update_prediction_columns),
+            get_selection_func("eval-predictions-dir", update_prediction_columns)[0],
+            outputs=[prediction_files_state, prediction_directory_input, prediction_group]
+            + [prediction_columns[label] for label in ["Start Time", "End Time", "Class", "Confidence", "Recording", "Duration"]],
+            show_progress="full",
+        )
+        
+        prediction_directory_textbox.change(
+            get_selection_func("eval-predictions-dir", update_prediction_columns)[1],
+            inputs=prediction_directory_textbox,
             outputs=[prediction_files_state, prediction_directory_input, prediction_group]
             + [prediction_columns[label] for label in ["Start Time", "End Time", "Class", "Confidence", "Recording", "Duration"]],
             show_progress="full",
